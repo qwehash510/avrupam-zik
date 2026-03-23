@@ -17,14 +17,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎵 <b>Hoşgeldin!</b>\n\n"
         "Ben bir <i>Telegram Müzik Botu</i>yım. 💿\n\n"
         "🔹 Kullanımı:\n"
-        "1️⃣ /play <i>Sanatçı - Şarkı</i> → Şarkıyı arayıp gönderirim.\n"
-        "2️⃣ Büyük dosyalar gönderilemiyorsa uyarı alırsınız.\n\n"
+        "1️⃣ /play <i>Şarkı Adı</i> → YouTube’dan otomatik bulup gönderirim.\n"
+        "2️⃣ /play <i>YouTube Linki</i> → Direkt mp3 indiririm.\n\n"
         "💡 Developer: @voidsafarov"
     )
     await update.message.reply_html(welcome_text)
 
-# Video ID arama
+# Video ID arama (YouTube Data API)
 def search_youtube(query):
+    if not YOUTUBE_API_KEY:
+        return None
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
     request = youtube.search().list(
         q=query,
@@ -42,25 +44,31 @@ def search_youtube(query):
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) == 0:
         await update.message.reply_text(
-            "❌ Lütfen bir şarkı ismi girin.\nÖrnek: /play Imagine Dragons - Believer"
+            "❌ Lütfen bir şarkı ismi veya YouTube linki girin.\nÖrnek: /play Imagine Dragons - Believer\nveya /play https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         )
         return
 
-    song_query = " ".join(context.args)
-    msg = await update.message.reply_text(f"⏳ '{song_query}' aranıyor, lütfen bekleyin...")
+    query = " ".join(context.args)
+    msg = await update.message.reply_text(f"⏳ '{query}' hazırlanıyor, lütfen bekleyin...")
 
     try:
-        video_url = search_youtube(song_query)
-        if not video_url:
-            await msg.edit_text("❌ Şarkı bulunamadı. Lütfen başka bir isim deneyin.")
-            return
+        # Eğer link ise direkt indir
+        if query.startswith("http"):
+            video_url = query
+        else:
+            # Şarkı ismi ise YouTube API ile arama yap
+            video_url = search_youtube(query)
+            if not video_url:
+                await msg.edit_text("❌ Şarkı bulunamadı. Lütfen farklı bir isim deneyin.")
+                return
 
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'song.%(ext)s',
             'noplaylist': True,
-            'quiet': True,
+            'quiet': False,
             'no_warnings': True,
+            'nocheckcertificate': True,  # SSL hatalarını önler
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -91,7 +99,9 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logging.error(f"Hata oluştu: {e}")
-        await msg.edit_text("❌ Bir hata oluştu. Lütfen tekrar deneyin.")
+        await msg.edit_text(
+            "❌ Bir hata oluştu. Lütfen linki kontrol edin veya farklı bir şarkı deneyin."
+        )
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
