@@ -1,124 +1,69 @@
 import os
 import asyncio
-from pyrogram import Client, filters
-from pyrogram.types import Message
-from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import AudioPiped
-from yt_dlp import YoutubeDL
-from config import API_ID, API_HASH, BOT_TOKEN
+from pytube import YouTube
+from telegram import Update, InputMediaAudio
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from mutagen.mp3 import MP3
+from PIL import Image
+import logging
 
-DOWNLOADS = "downloads"
-if not os.path.exists(DOWNLOADS):
-    os.makedirs(DOWNLOADS)
-
-bot = Client(
-    "iso_music_bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
+# Logging ayarı
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
 )
 
-call = PyTgCalls(bot)
-queues = {}  # chat_id: [(file,title)]
+BOT_TOKEN = os.environ.get("8746073140:AAE6up6COUFccy9OIVqImDDY_HM_cDxaRHg")
+MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB Telegram limiti
 
-ytdl_opts = {
-    "format": "bestaudio",
-    "outtmpl": f"{DOWNLOADS}/%(title)s.%(ext)s",
-    "quiet": True,
-    "noplaylist": True
-}
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    welcome_text = (
+        "🎶 <b>Hoşgeldin!</b>\n\n"
+        "Ben bir <i>Telegram Müzik Botu</i>yım. 💿\n"
+        "Komutlarım:\n"
+        "1️⃣ /play <i>YouTube linki</i> → Şarkıyı indirir ve gönderirim.\n"
+        "2️⃣ Büyük dosyalar gönderilemiyorsa uyarı alırsınız.\n\n"
+        "💡 Developer: @voidsafarov"
+    )
+    await update.message.reply_html(welcome_text)
 
-def download_audio(query):
-    with YoutubeDL(ytdl_opts) as ydl:
-        info = ydl.extract_info(f"ytsearch:{query}", download=True)["entries"][0]
-        file = ydl.prepare_filename(info)
-        title = info.get("title", "Unknown")
-    return file, title
+async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) == 0:
+        await update.message.reply_text("❌ Lütfen bir YouTube linki girin.\nÖrnek: /play https://youtu.be/...")
+        return
 
-@bot.on_message(filters.command("start"))
-async def start_cmd(client, message: Message):
-    text = """✨ **ISO. MUSIC BOT** 🎧
+    url = context.args[0]
+    msg = await update.message.reply_text("⏳ Şarkınız hazırlanıyor, lütfen bekleyin...")
 
-📌 Sesli sohbette müzik çalar
+    try:
+        yt = YouTube(url)
+        title = yt.title
+        length = yt.length  # saniye
+        stream = yt.streams.filter(only_audio=True).first()
+        temp_file = f"{title}.mp4"
 
-🎵 /play şarkı adı  
-⏸ /pause  
-▶ /resume  
-⏭ /skip  
-⏹ /stop  
-📜 /queue  
-👋 /leave
-"""
-    await message.reply(text)
+        stream.download(filename=temp_file)
 
-@bot.on_message(filters.command("play"))
-async def play_music(client, message: Message):
-    if len(message.command) < 2:
-        return await message.reply("⚠️ Şarkı adı yaz!")
+        file_size = os.path.getsize(temp_file)
+        if file_size > MAX_FILE_SIZE:
+            await msg.edit_text("❌ Dosya çok büyük! Maksimum 2GB.")
+            os.remove(temp_file)
+            return
 
-    query = message.text.split(None,1)[1]
-    msg = await message.reply("🔎 Aranıyor...")
+        # mp3 olarak gönder
+        await update.message.reply_audio(audio=open(temp_file, 'rb'), title=title)
+        await msg.edit_text(f"✅ Şarkı gönderildi: {title} ({length//60}dk {length%60}sn)")
 
-    file, title = download_audio(query)
-    chat_id = message.chat.id
+        os.remove(temp_file)
 
-    if chat_id not in queues:
-        queues[chat_id] = []
+    except Exception as e:
+        logging.error(f"Hata oluştu: {e}")
+        await msg.edit_text(f"❌ Bir hata oluştu: {e}")
 
-    queues[chat_id].append((file, title))
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("play", play))
 
-    if len(queues[chat_id]) == 1:
-        await call.join_group_call(chat_id, AudioPiped(file))
-        await msg.edit(f"🎶 **Çalıyor:** `{title}`")
-    else:
-        await msg.edit(f"📥 **Queue'ya eklendi:** `{title}`")
-
-@bot.on_message(filters.command("skip"))
-async def skip_music(client, message: Message):
-    chat_id = message.chat.id
-    if chat_id not in queues or len(queues[chat_id]) < 2:
-        return await message.reply("⚠️ Atlanacak şarkı yok!")
-    queues[chat_id].pop(0)
-    next_file, next_title = queues[chat_id][0]
-    await call.change_stream(chat_id, AudioPiped(next_file))
-    await message.reply(f"⏭ **Atlandı! Şimdi:** `{next_title}`")
-
-@bot.on_message(filters.command("pause"))
-async def pause_music(client, message: Message):
-    await call.pause_stream(message.chat.id)
-    await message.reply("⏸️ Müzik duraklatıldı")
-
-@bot.on_message(filters.command("resume"))
-async def resume_music(client, message: Message):
-    await call.resume_stream(message.chat.id)
-    await message.reply("▶️ Müzik devam ediyor")
-
-@bot.on_message(filters.command("stop"))
-async def stop_music(client, message: Message):
-    chat_id = message.chat.id
-    queues[chat_id] = []
-    await call.leave_group_call(chat_id)
-    await message.reply("⏹️ Müzik durduruldu")
-
-@bot.on_message(filters.command("queue"))
-async def show_queue(client, message: Message):
-    chat_id = message.chat.id
-    if chat_id not in queues or not queues[chat_id]:
-        return await message.reply("📭 Queue boş!")
-    text = "📜 **Queue Listesi:**\n\n"
-    for i, (_, title) in enumerate(queues[chat_id]):
-        text += f"{i+1}. `{title}`\n"
-    await message.reply(text)
-
-@bot.on_message(filters.command("leave"))
-async def leave_group(client, message: Message):
-    await call.leave_group_call(message.chat.id)
-    queues[message.chat.id] = []
-    await message.reply("👋 Sohbetten ayrıldım!")
-
-async def main():
-    await bot.start()
-    print("✅ ISO. MUSIC BOT AKTİF")
-    await asyncio.Event().wait()
-
-asyncio.run(main())
+    print("Bot başlatıldı... Developer: @voidsafarov")
+    app.run_polling()
