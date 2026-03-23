@@ -4,19 +4,21 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import logging
 import yt_dlp
 
-# Logging
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB Telegram limiti
+MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 
 # /start komutu
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
-        "🎶 <b>Hoşgeldin!</b>\n\n"
+        "🎵 <b>Hoşgeldin!</b>\n\n"
         "Ben bir <i>Telegram Müzik Botu</i>yım. 💿\n\n"
-        "🔹 Kullanımı çok kolay:\n"
-        "1️⃣ /play <i>Şarkı ismi</i> → Şarkıyı arayıp indiririm ve sana gönderirim.\n"
+        "🔹 Kullanımı:\n"
+        "1️⃣ /play <i>Sanatçı - Şarkı</i> → Şarkıyı arayıp gönderirim.\n"
         "2️⃣ Büyük dosyalar gönderilemiyorsa uyarı alırsınız.\n\n"
         "💡 Developer: @voidsafarov"
     )
@@ -26,17 +28,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) == 0:
         await update.message.reply_text(
-            "❌ Lütfen bir şarkı ismi girin.\nÖrnek: /play Imagine Dragons Believer"
+            "❌ Lütfen bir şarkı ismi girin.\nÖrnek: /play Imagine Dragons - Believer"
         )
         return
 
-    song_name = " ".join(context.args)
+    song_query = " ".join(context.args)
     msg = await update.message.reply_text(
-        f"⏳ '{song_name}' aranıyor ve hazırlanıyor, lütfen bekleyin..."
+        f"⏳ '{song_query}' aranıyor, en iyi sonucu alıyorum..."
     )
 
     try:
-        search_str = f"ytsearch1:{song_name}"  # Hatasız arama için
+        search_str = f"ytsearch1:{song_query}"
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'song.%(ext)s',
@@ -52,22 +54,27 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(search_str, download=True)
-            # Arama listesi dönerse ilk videoyu al
-            if 'entries' in info:
+
+            # Eğer liste döndüyse ilk videoyu al
+            if 'entries' in info and info['entries']:
                 info = info['entries'][0]
 
             filename = ydl.prepare_filename(info)
             title = info.get('title', 'Unknown')
+            uploader = info.get('uploader', 'Unknown')
             duration = info.get('duration', 0)
 
-        # Dosya boyutu kontrolü
         file_size = os.path.getsize(filename)
         if file_size > MAX_FILE_SIZE:
             await msg.edit_text("❌ Dosya çok büyük! Maksimum 2GB.")
             os.remove(filename)
             return
 
-        await update.message.reply_audio(audio=open(filename, 'rb'), title=title)
+        await update.message.reply_audio(
+            audio=open(filename, 'rb'),
+            title=title,
+            performer=uploader
+        )
         await msg.edit_text(f"✅ Şarkı gönderildi: {title} ({duration//60}dk {duration%60}sn)")
 
         os.remove(filename)
@@ -75,7 +82,8 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Hata oluştu: {e}")
         await msg.edit_text(
-            "❌ Bir hata oluştu. Lütfen şarkı ismini kontrol edin veya farklı bir şarkı deneyin."
+            "❌ Bir hata oluştu. Şarkı bulunamadı veya desteklenmeyen bir durum var. "
+            "Lütfen sanatçı ve şarkı adını kontrol edin."
         )
 
 if __name__ == "__main__":
