@@ -1,20 +1,16 @@
 import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import logging
 import yt_dlp
+import logging
 
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 
-# /start komutu
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
+    text = (
         "🎵 <b>Hoşgeldin!</b>\n\n"
         "Ben bir <i>Telegram Müzik Botu</i>yım. 💿\n\n"
         "🔹 Kullanımı:\n"
@@ -22,9 +18,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "2️⃣ Büyük dosyalar gönderilemiyorsa uyarı alırsınız.\n\n"
         "💡 Developer: @voidsafarov"
     )
-    await update.message.reply_html(welcome_text)
+    await update.message.reply_html(text)
 
-# /play komutu
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) == 0:
         await update.message.reply_text(
@@ -32,31 +27,30 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    song_query = " ".join(context.args)
-    msg = await update.message.reply_text(
-        f"⏳ '{song_query}' aranıyor, en iyi sonucu alıyorum..."
-    )
+    query = " ".join(context.args)
+    msg = await update.message.reply_text(f"⏳ '{query}' aranıyor, en iyi sonucu alıyorum...")
 
     try:
-        search_str = f"ytsearch1:{song_query}"
+        # Search ve download options
         ydl_opts = {
             'format': 'bestaudio/best',
-            'outtmpl': 'song.%(ext)s',
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
+            'default_search': f'ytsearch1:{query}',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            'outtmpl': 'song.%(ext)s'
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(search_str, download=True)
+            info = ydl.extract_info(query, download=True)
 
-            # Eğer liste döndüyse ilk videoyu al
-            if 'entries' in info and info['entries']:
+            # Eğer entries döndüyse ilkini al
+            if 'entries' in info and len(info['entries']) > 0:
                 info = info['entries'][0]
 
             filename = ydl.prepare_filename(info)
@@ -70,17 +64,13 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(filename)
             return
 
-        await update.message.reply_audio(
-            audio=open(filename, 'rb'),
-            title=title,
-            performer=uploader
-        )
+        await update.message.reply_audio(audio=open(filename,'rb'), title=title, performer=uploader)
         await msg.edit_text(f"✅ Şarkı gönderildi: {title} ({duration//60}dk {duration%60}sn)")
 
         os.remove(filename)
 
     except Exception as e:
-        logging.error(f"Hata oluştu: {e}")
+        logging.error(f"Hata: {e}")
         await msg.edit_text(
             "❌ Bir hata oluştu. Şarkı bulunamadı veya desteklenmeyen bir durum var. "
             "Lütfen sanatçı ve şarkı adını kontrol edin."
@@ -90,6 +80,5 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("play", play))
-
     print("Bot başlatıldı... Developer: @voidsafarov")
     app.run_polling()
