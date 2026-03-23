@@ -13,7 +13,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-BOT_TOKEN = os.environ.get("8746073140:AAE6up6COUFccy9OIVqImDDY_HM_cDxaRHg")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB Telegram limiti
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
