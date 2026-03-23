@@ -1,8 +1,6 @@
 import os
-import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from mutagen.mp3 import MP3
 import logging
 import yt_dlp
 
@@ -33,24 +31,36 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     song_name = " ".join(context.args)
-    msg = await update.message.reply_text(f"⏳ '{song_name}' aranıyor ve hazırlanıyor, lütfen bekleyin...")
+    msg = await update.message.reply_text(
+        f"⏳ '{song_name}' aranıyor ve hazırlanıyor, lütfen bekleyin..."
+    )
 
     try:
+        search_str = f"ytsearch1:{song_name}"  # Hatasız arama için
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'song.%(ext)s',
             'noplaylist': True,
             'quiet': True,
-            'default_search': 'ytsearch1',  # şarkı ismi ile arama
-            'no_warnings': True
+            'no_warnings': True,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(song_name, download=True)
+            info = ydl.extract_info(search_str, download=True)
+            # Arama listesi dönerse ilk videoyu al
+            if 'entries' in info:
+                info = info['entries'][0]
+
             filename = ydl.prepare_filename(info)
             title = info.get('title', 'Unknown')
             duration = info.get('duration', 0)
 
+        # Dosya boyutu kontrolü
         file_size = os.path.getsize(filename)
         if file_size > MAX_FILE_SIZE:
             await msg.edit_text("❌ Dosya çok büyük! Maksimum 2GB.")
