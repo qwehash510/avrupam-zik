@@ -15,7 +15,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎵 <b>Hoşgeldin!</b>\n\n"
         "Ben bir <i>Telegram Müzik Botu</i>yım. 💿\n\n"
         "🔹 Kullanımı:\n"
-        "1️⃣ /play <i>Sanatçı - Şarkı</i> → Şarkıyı arayıp gönderirim.\n"
+        "1️⃣ /play <i>YouTube Linki</i> → Şarkıyı indirip gönderirim.\n"
         "2️⃣ Büyük dosyalar gönderilemiyorsa uyarı alırsınız.\n\n"
         "💡 Developer: @voidsafarov"
     )
@@ -25,19 +25,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) == 0:
         await update.message.reply_text(
-            "❌ Lütfen bir şarkı ismi girin.\nÖrnek: /play Imagine Dragons - Believer"
+            "❌ Lütfen bir YouTube linki girin.\nÖrnek: /play https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         )
         return
 
-    song_query = " ".join(context.args)
-    msg = await update.message.reply_text(
-        f"⏳ '{song_query}' aranıyor, en doğru sonucu alıyorum..."
-    )
+    url = context.args[0]
+    msg = await update.message.reply_text("⏳ Şarkı indiriliyor, lütfen bekleyin...")
 
     try:
-        # yt-dlp arama ve mp3 seçenekleri
-        search_str = f"ytsearchdate1:{song_query}"  # en güncel ve doğru ilk video
-
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'song.%(ext)s',
@@ -52,12 +47,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(search_str, download=True)
-
-            # Eğer entries döndüyse ilk videoyu al
-            if 'entries' in info and len(info['entries']) > 0:
-                info = info['entries'][0]
-
+            info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
             title = info.get('title', 'Unknown')
             uploader = info.get('uploader', 'Unknown')
@@ -81,8 +71,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Hata oluştu: {e}")
         await msg.edit_text(
-            "❌ Bir hata oluştu. Şarkı bulunamadı veya desteklenmeyen bir durum var. "
-            "Lütfen sanatçı ve şarkı adını kontrol edin."
+            "❌ Bir hata oluştu. Lütfen linki kontrol edin veya farklı bir link deneyin."
         )
 
 if __name__ == "__main__":
