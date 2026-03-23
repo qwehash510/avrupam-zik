@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
+YOUTUBE_API_KEY = os.environ.get("AIzaSyDreCejh0Rl0w5jpwvhqqLCTZEOWB2YpZA")
 MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 
 # /start komutu
