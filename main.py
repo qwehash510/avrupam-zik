@@ -1,81 +1,75 @@
 import os
+import requests
 import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import yt_dlp
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 
-# /start komutu
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "🎵 <b>Hoşgeldin!</b>\n\n"
-        "Ben bir <i>Telegram Müzik Botu</i>yım. 💿\n\n"
-        "🔹 Kullanımı:\n"
-        "1️⃣ /play <i>YouTube Linki</i> → Şarkıyı indirip gönderirim.\n"
+    await update.message.reply_text(
+        "🎵 Müzik Botu Hazır!\n\n"
+        "Kullanım:\n"
+        "/play Eminem - Mockingbird\n\n"
         "💡 Developer: @voidsafarov"
     )
-    await update.message.reply_html(welcome_text)
 
-# /play komutu
+# Şarkı bul + indir
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) == 0:
-        await update.message.reply_text(
-            "❌ Lütfen bir YouTube linki girin.\nÖrnek: /play https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        )
+    if not context.args:
+        await update.message.reply_text("❌ Şarkı ismi yaz.")
         return
 
-    url = context.args[0]
-    msg = await update.message.reply_text("⏳ Şarkı indiriliyor, lütfen bekleyin...")
+    query = " ".join(context.args)
+    msg = await update.message.reply_text("🔎 Şarkı aranıyor...")
 
     try:
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': 'song.%(ext)s',
-            'noplaylist': True,
-            'quiet': False,
-            'no_warnings': True,
-            'nocheckcertificate': True,  # SSL hatalarını önler
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
+        # iTunes API (çok stabil)
+        search_url = f"https://itunes.apple.com/search?term={query}&limit=1"
+        res = requests.get(search_url).json()
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            title = info.get("title", "Unknown")
-            uploader = info.get("uploader", "Unknown")
-            duration = info.get("duration", 0)
-
-        file_size = os.path.getsize(filename)
-        if file_size > MAX_FILE_SIZE:
-            await msg.edit_text("❌ Dosya çok büyük! Maksimum 2GB.")
-            os.remove(filename)
+        if not res["results"]:
+            await msg.edit_text("❌ Şarkı bulunamadı.")
             return
 
+        track = res["results"][0]
+        preview_url = track.get("previewUrl")
+
+        if not preview_url:
+            await msg.edit_text("❌ Şarkı bulunamadı.")
+            return
+
+        title = track.get("trackName")
+        artist = track.get("artistName")
+
+        await msg.edit_text(f"⬇️ İndiriliyor: {artist} - {title}")
+
+        audio = requests.get(preview_url)
+
+        with open("song.mp3", "wb") as f:
+            f.write(audio.content)
+
         await update.message.reply_audio(
-            audio=open(filename, "rb"),
+            audio=open("song.mp3", "rb"),
             title=title,
-            performer=uploader
+            performer=artist
         )
-        await msg.edit_text(f"✅ Şarkı gönderildi: {title} ({duration//60}dk {duration%60}sn)")
-        os.remove(filename)
+
+        os.remove("song.mp3")
+        await msg.edit_text(f"✅ Gönderildi: {artist} - {title}")
 
     except Exception as e:
-        logging.error(f"Hata oluştu: {e}")
-        await msg.edit_text(
-            "❌ Bir hata oluştu. Lütfen linki kontrol edin veya farklı bir link deneyin."
-        )
+        logging.error(e)
+        await msg.edit_text("❌ Bir hata oluştu.")
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("play", play))
-    print("Bot başlatıldı... Developer: @voidsafarov")
+
+    print("Bot çalışıyor...")
     app.run_polling()
