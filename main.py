@@ -10,7 +10,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         "🎵 Müzik Botu Hazır!\n\n"
         "Kullanım:\n"
         "/play Eminem - Mockingbird\n\n"
@@ -20,11 +20,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Şarkı bul + indir
 async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("❌ Şarkı ismi yaz.")
+        await update.effective_message.reply_text("❌ Şarkı ismi yaz.")
         return
 
     query = " ".join(context.args)
-    msg = await update.message.reply_text("🔎 Şarkı aranıyor...")
+    msg = await update.effective_message.reply_text("🔎 Şarkı aranıyor...")
 
     try:
         # iTunes API (çok stabil)
@@ -52,7 +52,7 @@ async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open("song.mp3", "wb") as f:
             f.write(audio.content)
 
-        await update.message.reply_audio(
+        await update.effective_message.reply_audio(
             audio=open("song.mp3", "rb"),
             title=title,
             performer=artist
@@ -71,5 +71,5 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("play", play))
 
-    print("Bot çalışıyor...")
+    print("Bot çalışıyor... Developer: @voidsafarov")
     app.run_polling()
