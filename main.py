@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_TOKEN = "8408022264:AAE-743OhdJNuerRoJZSg5JhLssIX6FXj5A"
 
 # ===== DATABASE =====
 conn = sqlite3.connect("bot.db", check_same_thread=False)
