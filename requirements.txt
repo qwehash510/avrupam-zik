@@ -1,2 +1,6 @@
 python-telegram-bot==20.4
+PyTgCalls==2.7.2
+pytgcalls==2.1.1
+ffmpeg-python==0.3.0
+pydub==0.25.1
 requests
