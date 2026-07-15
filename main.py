@@ -9,7 +9,7 @@ API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 # Grup reklamı
-GROUP_LINK = "https://t.me/vxtikan"
+GROUP_LINK = "https://t.me/YunanistanYukselis"
 
 # ---------------- TELETHON CLIENT ----------------
 client = TelegramClient("bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
@@ -69,7 +69,7 @@ def usage_text():
         "1️⃣ TikTok veya Instagram linkini kopyala\n"
         "2️⃣ Bot’a gönder\n"
         "3️⃣ Video ve MP3/fotoğraf olarak al\n\n"
-        "🛠 Developer: @primalamazsin"
+        "🛠 Developer: @bilenmis"
     )
 
 # ---------------- /START ve /HELP ----------------
